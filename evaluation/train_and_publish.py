@@ -19,8 +19,10 @@ Usage:
 import argparse
 import json
 import os
+import random
 
 import numpy as np
+from datasets import load_dataset
 import tinker
 from datasets import load_dataset
 from tinker import types
@@ -29,7 +31,7 @@ from tinker_cookbook.supervised.data import conversation_to_datum
 from tinker_cookbook.tokenizer_utils import get_tokenizer
 
 MODEL = "meta-llama/Llama-3.2-3B"
-# MODEL = "meta-llama/Llama-3.2-1B"    # Smaller, faster for development
+#MODEL = "meta-llama/Llama-3.2-1B"    # Smaller, faster for development
 # MODEL = "meta-llama/Llama-3.1-8B"    # Recommended for final submission
 
 EVAL_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -92,24 +94,50 @@ def main():
     print("Loading 3 datasets...")
 
     # Load each dataset (only the train split)
-    # The datasets are large, so stream and take random subset, this won't be a truly random subset but good enough for now
+    # The datasets are large, so stream and take random subset
+    # this won't be a truly random subset but good enough for now
     gsm8k = load_dataset("openai/gsm8k", "main", split="train", streaming=True).shuffle(seed=42)
-    #tulu = load_dataset("allenai/tulu-3-sft-mixture", split="train", streaming=True).shuffle(seed=42)
+    tulu = load_dataset("allenai/tulu-3-sft-mixture", split="train", streaming=True).shuffle(seed=42)
     #opencodeinstruct = load_dataset("nvidia/OpenCodeInstruct", split="train", streaming=True).shuffle(seed=42)
 
-    # Take 1000 samples from the dataset
+    # Take the first 1000 random samples from the streamed dataset
     # Change ratios later, or change to selective sampling
     gsm8k_subset = [example for _, example in zip(range(1000), gsm8k)]
+    tulu_subset = [example for _, example in zip(range(5000), tulu)]
+    #opencodeinstruct_subset = [example for _, example in zip(range(100), opencodeinstruct)]
+    # interleave so each batch has a mix of datasets
 
-
+    interleaved = []
+    t_idx = 0
+    for i, g_example in enumerate(gsm8k_subset):
+        interleaved.append(g_example)
+        # Every 2 GSM8K examples, add 1 Tulu example
+        if (i + 1) % 2 == 0 and t_idx < len(tulu_subset):
+            interleaved.append(tulu_subset[t_idx])
+            t_idx += 1
     print("Preparing training data...")
+    
 
     all_data = []
 
-    for example in gsm8k_subset:
-        if "question" in example and "answer" in example: # gsm8k format
+    for example in interleaved:
+        if "question" in example and "answer" in example:
+            # gsm8k format
             question = example["question"]
+            #answer = example["answer"]
             answer = example["answer"].strip()
+            #print(f"User: {question}\nAssistant: {answer}\n")
+        elif "messages" in example:
+            # tulu or opencodeinstruct format
+            question = None
+            answer = None
+            # take LAST assistant message paired with preceding user
+            messages = example["messages"]
+
+            for i in range(len(messages)-1):
+                if messages[i]["role"] == "user" and messages[i+1]["role"] == "assistant":
+                    question = messages[i]["content"]
+                    answer = messages[i+1]["content"]
 
         convo = [
             {"role": "user", "content": question},
@@ -126,7 +154,6 @@ def main():
         all_data.append(datum)
 
     print(f"{len(all_data)} training examples prepared") 
-
 
     # Create training client
     print(f"Creating LoRA training client (rank={args.rank})...")
@@ -153,7 +180,8 @@ def main():
         logprobs = np.concatenate([o["logprobs"].tolist() for o in fwd_bwd_result.loss_fn_outputs])
         weights = np.concatenate([d.loss_fn_inputs["weights"].tolist() for d in batch])
         loss = -np.dot(logprobs, weights) / max(weights.sum(), 1)
-        print(f"  Step {step+1}/{args.num_steps} | Loss: {loss:.4f}")
+        if(step % 10 == 0 or step == args.num_steps - 1):
+            print(f"  Step {step+1}/{args.num_steps} | Loss: {loss:.4f}")
 
     # Save checkpoint
     print(f"\nSaving checkpoint '{args.checkpoint_name}'...")
