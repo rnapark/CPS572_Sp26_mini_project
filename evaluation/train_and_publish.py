@@ -234,13 +234,6 @@ def main():
     min_delta = 0.01
     steps_since_improve = 0
 
-    # Define the batch composition per dataset (stratification)
-    # take into account the batch size and rounding
-    dataset_ratios = {
-        "gsm8k": 0.75,  # 75% of batch
-        "tulu": 0.25    # 25% of batch
-    }
-
     for step in range(args.num_steps):
         raw_batch = build_batch(gsm8k_subset, tulu_subset, step=step, total_steps=args.num_steps, batch_size=args.batch_size)
         batch = []
@@ -285,7 +278,7 @@ def main():
             for w, src in zip(weights_list, sources)
         ])
 
-        gsm8k_boost = 2.0
+        gsm8k_boost = 2.0 # LOCKED
         weights = weights.copy()
         # only weight asst tokens 
         gsm_mask = (token_sources == "gsm8k") & (weights > 0)
