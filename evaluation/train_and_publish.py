@@ -32,65 +32,31 @@ from tinker_cookbook import model_info, renderers
 from tinker_cookbook.supervised.data import conversation_to_datum
 from tinker_cookbook.tokenizer_utils import get_tokenizer
 
-MODEL = "meta-llama/Llama-3.2-3B"
+#MODEL = "meta-llama/Llama-3.2-3B"
 #MODEL = "meta-llama/Llama-3.2-1B"    # Smaller, faster for development
-# MODEL = "meta-llama/Llama-3.1-8B"    # Recommended for final submission
+MODEL = "meta-llama/Llama-3.1-8B"    # Recommended for final submission
 
 EVAL_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# TODO: TOY DATA, replace with your own training data
-DEMO_CONVERSATIONS = [
-    [
-        {"role": "user", "content": "What is 15 + 27?"},
-        {"role": "assistant", "content": "15 + 27 = 42"},
-    ],
-    [
-        {"role": "user", "content": "What is the capital of France?"},
-        {"role": "assistant", "content": "The capital of France is Paris."},
-    ],
-    [
-        {"role": "user", "content": "Write a Python function that returns the sum of two numbers."},
-        {"role": "assistant", "content": "def add(a, b):\n    return a + b"},
-    ],
-    [
-        {"role": "user", "content": "What is 8 * 7?"},
-        {"role": "assistant", "content": "8 * 7 = 56"},
-    ],
-    [
-        {"role": "user", "content": "Translate 'hello' to Spanish."},
-        {"role": "assistant", "content": "Hola"},
-    ],
-    [
-        {"role": "user", "content": "What is the square root of 144?"},
-        {"role": "assistant", "content": "The square root of 144 is 12."},
-    ],
-    [
-        {"role": "user", "content": "Write a Python function to check if a number is even."},
-        {"role": "assistant", "content": "def is_even(n):\n    return n % 2 == 0"},
-    ],
-    [
-        {"role": "user", "content": "List the first 5 prime numbers."},
-        {"role": "assistant", "content": "The first 5 prime numbers are: 2, 3, 5, 7, 11."},
-    ],
-]
 
-def scoring_function(ifeval, gsm8k, humaneval):
+def scoring_function(ifeval, gsm8k, humaneval, factor=1.2, split=0.7):
     # cap scores at reasonable thresholds and average
     # forces model to improve weakest task
+    #factor allows us to push model to higher performance on all tasks, but still requires balance
     base = (
-        ifeval / 0.45 +
-        gsm8k / 0.50 +
-        humaneval / 0.30
+        ifeval / 0.45 * factor +
+        gsm8k / 0.50 * factor +
+        humaneval / 0.30 * factor
     ) / 3
 
     # penalize imbalance
     min_task = min(
-        ifeval / 0.45,
-        gsm8k / 0.50,
-        humaneval / 0.30
+        (ifeval / 0.45) * factor,
+        (gsm8k / 0.50) * factor,
+        (humaneval / 0.30) * factor
     )
 
-    return 0.7 * base + 0.3 * min_task
+    return split * base + (1 - split) * min_task
 
 def get_lr(step, total_steps, base_lr, warmup_steps=100):
     # cosine decay with linear warmup
@@ -100,7 +66,7 @@ def get_lr(step, total_steps, base_lr, warmup_steps=100):
     progress = (step - warmup_steps) / (total_steps - warmup_steps)
     return base_lr * 0.5 * (1 + math.cos(math.pi * progress))
 
-def build_batch(gsm8k_data, tulu_data, step, total_steps, batch_size=4):
+def build_batch(gsm8k_data, tulu_data, opencode_data, step, total_steps, batch_size=4):
     """
     Returns a batch of examples for training with improved curriculum + proper stochastic mixing.
     """
@@ -110,27 +76,32 @@ def build_batch(gsm8k_data, tulu_data, step, total_steps, batch_size=4):
 
     # Phase-based schedule
     if progress < 0.3:
-        target_ratio = 1.0   # early: pure GSM8K
+        target_ratio = 0.9   # early: mostly GSM8K
     elif progress < 0.7:
-        target_ratio = 0.7   # mid: real mixing (stronger Tulu influence)
+        target_ratio = 0.75   # mid: real mixing (stronger Tulu influence)
     else:
-        target_ratio = 0.9   # late: stabilize (not too GSM-heavy)
+        target_ratio = 0.8   # late: stabilize (not too GSM-heavy)
 
     # Proper stochastic sampling 
-    gsm8k_count = max(2, np.random.binomial(batch_size, target_ratio))
-    tulu_count = batch_size - gsm8k_count
+    gsm8k_count = max(1, np.random.binomial(batch_size, target_ratio)) # ensure at least 1 GSM8K example per batch for stability
+    opencode_count = 0 #update later
+    tulu_count = batch_size - gsm8k_count #update later
+
 
     # Stronger anchoring (prevents drift)
     if step % 2 == 0:
         gsm8k_count = batch_size
         tulu_count = 0
+        opencode_count = 0
 
     # Safety (in case of small datasets)
     gsm8k_count = min(gsm8k_count, len(gsm8k_data))
     tulu_count = min(tulu_count, len(tulu_data))
+    opencode_count = min(opencode_count, len(opencode_data))
 
     gsm8k_samples = [dict(ex, _source="gsm8k") for ex in random.sample(gsm8k_data, gsm8k_count)]
     tulu_samples = [dict(ex, _source="tulu") for ex in random.sample(tulu_data, tulu_count)]
+    opencode_samples = [dict(ex, _source="opencode") for ex in random.sample(opencode_data, opencode_count)]
 
     # Attach source tags
     for ex in gsm8k_samples:
@@ -138,8 +109,11 @@ def build_batch(gsm8k_data, tulu_data, step, total_steps, batch_size=4):
 
     for ex in tulu_samples:
         ex["_source"] = "tulu"
+    
+    for ex in opencode_samples:
+        ex["_source"] = "opencode"
 
-    batch = gsm8k_samples + tulu_samples
+    batch = gsm8k_samples + tulu_samples + opencode_samples
 
     random.shuffle(batch)
     return batch
@@ -154,9 +128,11 @@ def example_to_convo(example):
     """
     source = example.get("_source", None)
     if "question" in example and "answer" in example: # GSM8K style
+        base_answer = example["answer"]
+        enhanced_answer = f"Let's think step by step.\n{base_answer}"
         convo = [
             {"role": "user", "content": example["question"]},
-            {"role": "assistant", "content": example["answer"].strip()},
+            {"role": "assistant", "content": enhanced_answer},
         ]
         return convo, source
 
@@ -175,8 +151,43 @@ def example_to_convo(example):
                 {"role": "assistant", "content": last_answer},
             ]
             return convo, source
+    
+    if "input" in example: # OpenCodeInstruct
+        convo = [
+            {"role": "user", "content": example["input"]},
+            {"role": "assistant", "content": example["output"]},
+        ]
+        return convo, source
 
     return None, None  # unsupported format
+
+def token_too_long_gsm8k(convo, renderer):
+    datum1 = conversation_to_datum(
+        convo,
+        renderer,
+        max_length=512,
+        train_on_what=renderers.TrainOnWhat.ALL_ASSISTANT_MESSAGES
+    )
+    
+    datum2 = conversation_to_datum(
+        convo,
+        renderer,
+        max_length=513,
+        train_on_what=renderers.TrainOnWhat.ALL_ASSISTANT_MESSAGES
+    )
+    return datum1!=datum2
+
+
+def filter_gsm8k_examples(examples_array, renderer):
+    good_examples = []
+    for example in examples_array:
+        convo, _ = example_to_convo(example)
+        if convo is None:
+            continue
+        if not token_too_long_gsm8k(convo, renderer):
+            good_examples.append(example)
+    print(f"Filtered examples: {len(examples_array)} -> {len(good_examples)} (max token length 512)")
+    return good_examples
 
 def main():
     parser = argparse.ArgumentParser(description="Train, save, and publish a checkpoint")
@@ -209,14 +220,21 @@ def main():
     # this won't be a truly random subset but good enough for now
     gsm8k = load_dataset("openai/gsm8k", "main", split="train", streaming=True).shuffle(seed=42)
     tulu = load_dataset("allenai/tulu-3-sft-mixture", split="train", streaming=True).shuffle(seed=42)
-    #opencodeinstruct = load_dataset("nvidia/OpenCodeInstruct", split="train", streaming=True).shuffle(seed=42)
+    opencode = load_dataset("nvidia/OpenCodeInstruct", split="train", streaming=True).shuffle(seed=42)
+
+    gsm8k_samples = 8000
+    tulu_samples = 10000
+    opencode_samples = 10000
 
     # Take the first ___ random samples from the streamed dataset
     # Change ratios later, or change to selective sampling
-    gsm8k_subset = [example for _, example in zip(range(3000), gsm8k)]
-    tulu_subset = [example for _, example in zip(range(1200), tulu)]
-    #opencodeinstruct_subset = [example for _, example in zip(range(100), opencodeinstruct)]
+    gsm8k_examples = [example for _, example in zip(range(gsm8k_samples), gsm8k)]
+    tulu_examples = [example for _, example in zip(range(tulu_samples), tulu)]
+    opencode_examples = [example for _, example in zip(range(opencode_samples), opencode)]
 
+    gsm8k_subset = filter_gsm8k_examples(gsm8k_examples, renderer)
+    tulu_subset = tulu_examples
+    opencode_subset = opencode_examples
 
     # Create training client
     print(f"Creating LoRA training client (rank={args.rank})...")
@@ -242,7 +260,7 @@ def main():
     }
 
     for step in range(args.num_steps):
-        raw_batch = build_batch(gsm8k_subset, tulu_subset, step=step, total_steps=args.num_steps, batch_size=args.batch_size)
+        raw_batch = build_batch(gsm8k_subset, tulu_subset, opencode_subset, step=step, total_steps=args.num_steps, batch_size=args.batch_size)
         batch = []
         sources = []
         for example in raw_batch:
