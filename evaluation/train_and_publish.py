@@ -75,12 +75,12 @@ DEMO_CONVERSATIONS = [
 ]
 
 def scoring_function(ifeval, gsm8k, humaneval):
-    # scoring mechanism reflects grading criteria
-    # POSSIBLE: weight gsm8k more if necessary
+    # cap scores at reasonable thresholds and average
+    # forces model to improve weakest task
     score = (
-        ifeval / 0.45 +
-        gsm8k / 0.50 +
-        humaneval / 0.30
+        min(ifeval / 0.45, 1.0) +
+        min(gsm8k / 0.50, 1.0) +
+        min(humaneval / 0.30, 1.0)
     ) / 3
     return score
 
