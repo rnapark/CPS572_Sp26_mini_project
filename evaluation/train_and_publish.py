@@ -77,12 +77,20 @@ DEMO_CONVERSATIONS = [
 def scoring_function(ifeval, gsm8k, humaneval):
     # cap scores at reasonable thresholds and average
     # forces model to improve weakest task
-    score = (
-        min(ifeval / 0.45, 1.0) +
-        min(gsm8k / 0.50, 1.0) +
-        min(humaneval / 0.30, 1.0)
+    base = (
+        ifeval / 0.45 +
+        gsm8k / 0.50 +
+        humaneval / 0.30
     ) / 3
-    return score
+
+    # penalize imbalance
+    min_task = min(
+        ifeval / 0.45,
+        gsm8k / 0.50,
+        humaneval / 0.30
+    )
+
+    return 0.7 * base + 0.3 * min_task
 
 def get_lr(step, total_steps, base_lr, warmup_steps=100):
     # cosine decay with linear warmup
@@ -221,6 +229,9 @@ def main():
 
     best_score = -1
     best_checkpoint_path = None
+    patience = 3 
+    min_delta = 0.01
+    steps_since_improve = 0
 
     # Define the batch composition per dataset (stratification)
     # take into account the batch size and rounding
@@ -299,10 +310,18 @@ def main():
             current_gsm8k = eval_metrics.get("openai/gsm8k/accuracy", 0.0)
             current_humaneval = eval_metrics.get("openai/openai_humaneval/accuracy", 0.0)
             current_score = scoring_function(current_ifeval, current_gsm8k, current_humaneval)
-            if current_score > best_score:
+            if current_score > best_score + min_delta:
                 best_score = current_score
                 best_checkpoint_path = checkpoint_path
+                steps_since_improve = 0
                 print(f"New best checkpoint at step {step+1} with score {best_score:.4f}")
+
+            else:
+                steps_since_improve += 1
+                
+            if steps_since_improve >= patience:
+                print(f"No improvement for {patience} evaluations, stopping early at step {step+1}")
+                break
 
     # Save checkpoint, best intm if there is one
     print(f"\nSelecting best checkpoint...")
