@@ -102,48 +102,46 @@ def get_lr(step, total_steps, base_lr, warmup_steps=100):
 
 def build_batch(gsm8k_data, tulu_data, step, total_steps, batch_size=4):
     """
-    Returns a batch of examples for training with curriculum + stochastic GSM8K ratio.
-
-    Args:
-        gsm8k_data (list): GSM8K dataset.
-        tulu_data (list): Tulu dataset.
-        step (int): Current training step.
-        total_steps (int): Total training steps.
-        batch_size (int): Number of examples per batch (default 4).
-
-    Returns:
-        list: Batch of examples.
+    Returns a batch of examples for training with improved curriculum + proper stochastic mixing.
     """
 
     # Compute curriculum progress
     progress = step / total_steps
 
-    # Base GSM8K ratio schedule:
-    # - early: mostly GSM8K
-    # - middle: mixed
-    # - late: mostly GSM8K
-    # Example: linear schedule + slight stochastic variation
+    # Phase-based schedule
     if progress < 0.3:
-        target_ratio = 1.0           # first 30% steps, pure GSM8K
+        target_ratio = 1.0   # early: pure GSM8K
     elif progress < 0.7:
-        target_ratio = 0.75          # middle steps, mostly GSM8K
+        target_ratio = 0.7   # mid: real mixing (stronger Tulu influence)
     else:
-        target_ratio = 0.9           # last 30%, bias back to GSM8K
+        target_ratio = 0.9   # late: stabilize (not too GSM-heavy)
 
-    # Discretize into batch counts
-    # Possible GSM8K counts: batch_size or batch_size-1
-    gsm8k_count = batch_size - 1 if random.random() < (1 - target_ratio) / 0.25 else batch_size
+    # Proper stochastic sampling 
+    gsm8k_count = max(2, np.random.binomial(batch_size, target_ratio))
     tulu_count = batch_size - gsm8k_count
 
-    # Anchor steps to prevent forgetting
-    # ex: every 10 steps, force a pure GSM8K batch
-    if step % 10 == 0:
+    # Stronger anchoring (prevents drift)
+    if step % 2 == 0:
         gsm8k_count = batch_size
         tulu_count = 0
 
-    # Sample examples
-    batch = random.sample(gsm8k_data, gsm8k_count) + random.sample(tulu_data, tulu_count)
-    random.shuffle(batch)  # mix order
+    # Safety (in case of small datasets)
+    gsm8k_count = min(gsm8k_count, len(gsm8k_data))
+    tulu_count = min(tulu_count, len(tulu_data))
+
+    gsm8k_samples = [dict(ex, _source="gsm8k") for ex in random.sample(gsm8k_data, gsm8k_count)]
+    tulu_samples = [dict(ex, _source="tulu") for ex in random.sample(tulu_data, tulu_count)]
+
+    # Attach source tags
+    for ex in gsm8k_samples:
+        ex["_source"] = "gsm8k"
+
+    for ex in tulu_samples:
+        ex["_source"] = "tulu"
+
+    batch = gsm8k_samples + tulu_samples
+
+    random.shuffle(batch)
     return batch
 
 def example_to_convo(example):
@@ -154,11 +152,13 @@ def example_to_convo(example):
       - Chat style: {"messages": [...]}
     Returns None if no valid convo can be created.
     """
+    source = example.get("_source", None)
     if "question" in example and "answer" in example: # GSM8K style
-        return [
+        convo = [
             {"role": "user", "content": example["question"]},
             {"role": "assistant", "content": example["answer"].strip()},
         ]
+        return convo, source
 
     if "messages" in example: # Tulu
         messages = example["messages"]
@@ -170,12 +170,13 @@ def example_to_convo(example):
         ]
         if pairs:
             last_question, last_answer = pairs[-1]
-            return [
+            convo = [
                 {"role": "user", "content": last_question},
                 {"role": "assistant", "content": last_answer},
             ]
+            return convo, source
 
-    return None  # unsupported format
+    return None, None  # unsupported format
 
 def main():
     parser = argparse.ArgumentParser(description="Train, save, and publish a checkpoint")
@@ -243,8 +244,9 @@ def main():
     for step in range(args.num_steps):
         raw_batch = build_batch(gsm8k_subset, tulu_subset, step=step, total_steps=args.num_steps, batch_size=args.batch_size)
         batch = []
+        sources = []
         for example in raw_batch:
-            convo = example_to_convo(example)
+            convo, source = example_to_convo(example)
             if convo:
                 datum = conversation_to_datum(
                     convo,
@@ -253,6 +255,7 @@ def main():
                     train_on_what=renderers.TrainOnWhat.ALL_ASSISTANT_MESSAGES
                 )
                 batch.append(datum)
+                sources.append(source)
         fwd_bwd_future = tc.forward_backward(batch, loss_fn="cross_entropy")
 
         # added learning rate scheduler with cosine decay and linear warmup
@@ -272,7 +275,21 @@ def main():
 
         # Compute loss
         logprobs = np.concatenate([o["logprobs"].tolist() for o in fwd_bwd_result.loss_fn_outputs])
-        weights = np.concatenate([d.loss_fn_inputs["weights"].tolist() for d in batch])
+
+        weights_list = [d.loss_fn_inputs["weights"].to_numpy() for d in batch]  # convert TensorData
+        weights = np.concatenate(weights_list)
+
+        # Expand token-level sources
+        token_sources = np.concatenate([
+            np.full(len(w), src, dtype="U10")
+            for w, src in zip(weights_list, sources)
+        ])
+
+        gsm8k_boost = 2.0
+        weights = weights.copy()
+        # only weight asst tokens 
+        gsm_mask = (token_sources == "gsm8k") & (weights > 0)
+        weights[gsm_mask] *= gsm8k_boost
         loss = -np.dot(logprobs, weights) / max(weights.sum(), 1)
         if(step % 50 == 0 or step == args.num_steps - 1):
             print(f"  Step {step+1}/{args.num_steps} | Loss: {loss:.4f}")
@@ -318,7 +335,7 @@ def main():
 
             else:
                 steps_since_improve += 1
-                
+
             if steps_since_improve >= patience:
                 print(f"No improvement for {patience} evaluations, stopping early at step {step+1}")
                 break
