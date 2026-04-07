@@ -154,14 +154,21 @@ def example_to_convo(example):
 
     if "messages" in example: # Tulu
         messages = example["messages"]
-        # extract last user-assistant pair
         pairs = [
             (messages[i]["content"], messages[i+1]["content"])
             for i in range(len(messages)-1)
             if messages[i]["role"] == "user" and messages[i+1]["role"] == "assistant"
         ]
         if pairs:
-            question, answer = random.choice(pairs)
+            # use a mix of longest and last pair
+            if random.random() < 0.3:
+                question, answer = max(
+                    pairs,
+                    key=lambda qa: len(qa[1].split())  # word-based length is more stable
+                )
+            else:
+                # last 70%, just take last back-and-forth pair
+                question, answer = pairs[-1]
             convo = [
                 {"role": "user", "content": question},
                 {"role": "assistant", "content": answer},
@@ -264,13 +271,6 @@ def main():
     patience = 3 
     min_delta = 0.01
     steps_since_improve = 0
-
-    # Define the batch composition per dataset (stratification)
-    # take into account the batch size and rounding
-    dataset_ratios = {
-        "gsm8k": 0.75,  # 75% of batch
-        "tulu": 0.25    # 25% of batch
-    }
 
     for step in range(args.num_steps):
         raw_batch = build_batch(gsm8k_subset, tulu_subset, opencode_subset, step=step, total_steps=args.num_steps, batch_size=args.batch_size)
