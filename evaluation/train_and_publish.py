@@ -1,10 +1,6 @@
 """
 Train a model (minimal SFT), save checkpoint, and publish it.
 
-NOTE: This is a TOY EXAMPLE that trains for a few steps on dummy data
-to verify the full workflow end-to-end. You should replace the training
-data and training logic with your own implementation.
-
 TODO:
   - Replace DEMO_CONVERSATIONS with your task-specific training data
   - Tune hyperparameters (learning rate, batch size, number of steps, LoRA rank)
@@ -58,6 +54,26 @@ def scoring_function(ifeval, gsm8k, humaneval, factor=1.2, split=0.7):
 
     return split * base + (1 - split) * min_task
 
+def load_scored_data(filename, temperature=2.0):
+    data = []
+    with open(filename, "r") as f:
+        for line in f:
+            data.append(json.loads(line))
+    
+    scores = np.array([ex["difficulty_score"] for ex in data])
+    exp_scores = np.exp((scores - np.max(scores)) / temperature)
+    probs = exp_scores / exp_scores.sum()
+    
+    for i, ex in enumerate(data):
+        ex["sampling_prob"] = probs[i]
+    return data
+
+def weighted_sample(dataset, count):
+    if count == 0 or not dataset: return []
+    probs = [ex["sampling_prob"] for ex in dataset]
+    indices = np.random.choice(len(dataset), size=count, replace=False, p=probs)
+    return [dataset[i] for i in indices]
+
 def get_lr(step, total_steps, base_lr, warmup_steps=100):
     # cosine decay with linear warmup
     if step < warmup_steps:
@@ -78,18 +94,18 @@ def build_batch(gsm8k_data, tulu_data, opencode_data, step, total_steps, batch_s
     if progress < 0.3:
         target_ratio = 0.9   # early: mostly GSM8K
     elif progress < 0.7:
-        target_ratio = 0.75   # mid: real mixing (stronger Tulu influence)
+        target_ratio = 0.7   # mid: real mixing (stronger Tulu influence)
     else:
         target_ratio = 0.8   # late: stabilize (not too GSM-heavy)
 
     # Proper stochastic sampling 
     gsm8k_count = max(1, np.random.binomial(batch_size, target_ratio)) # ensure at least 1 GSM8K example per batch for stability
-    opencode_count = 0 #update later
-    tulu_count = batch_size - gsm8k_count #update later
+    opencode_count = (batch_size - gsm8k_count) // 2 #update later
+    tulu_count = batch_size - gsm8k_count - opencode_count #update later
 
 
     # Stronger anchoring (prevents drift)
-    if step % 2 == 0:
+    if step % 4 == 0:
         gsm8k_count = batch_size
         tulu_count = 0
         opencode_count = 0
@@ -99,7 +115,7 @@ def build_batch(gsm8k_data, tulu_data, opencode_data, step, total_steps, batch_s
     tulu_count = min(tulu_count, len(tulu_data))
     opencode_count = min(opencode_count, len(opencode_data))
 
-    gsm8k_samples = [dict(ex, _source="gsm8k") for ex in random.sample(gsm8k_data, gsm8k_count)]
+    gsm8k_samples = weighted_sample(gsm8k_data, gsm8k_count)
     tulu_samples = [dict(ex, _source="tulu") for ex in random.sample(tulu_data, tulu_count)]
     opencode_samples = [dict(ex, _source="opencode") for ex in random.sample(opencode_data, opencode_count)]
 
@@ -145,10 +161,10 @@ def example_to_convo(example):
             if messages[i]["role"] == "user" and messages[i+1]["role"] == "assistant"
         ]
         if pairs:
-            last_question, last_answer = pairs[-1]
+            question, answer = random.choice(pairs)
             convo = [
-                {"role": "user", "content": last_question},
-                {"role": "assistant", "content": last_answer},
+                {"role": "user", "content": question},
+                {"role": "assistant", "content": answer},
             ]
             return convo, source
     
@@ -218,21 +234,18 @@ def main():
     # Load each dataset (only the train split)
     # The datasets are large, so stream and take random subset
     # this won't be a truly random subset but good enough for now
-    gsm8k = load_dataset("openai/gsm8k", "main", split="train", streaming=True).shuffle(seed=42)
+    gsm8k_subset = load_scored_data("gsm8k_scored.jsonl", temperature=2.0)
     tulu = load_dataset("allenai/tulu-3-sft-mixture", split="train", streaming=True).shuffle(seed=42)
     opencode = load_dataset("nvidia/OpenCodeInstruct", split="train", streaming=True).shuffle(seed=42)
 
-    gsm8k_samples = 8000
     tulu_samples = 10000
     opencode_samples = 10000
 
     # Take the first ___ random samples from the streamed dataset
     # Change ratios later, or change to selective sampling
-    gsm8k_examples = [example for _, example in zip(range(gsm8k_samples), gsm8k)]
     tulu_examples = [example for _, example in zip(range(tulu_samples), tulu)]
     opencode_examples = [example for _, example in zip(range(opencode_samples), opencode)]
 
-    gsm8k_subset = filter_gsm8k_examples(gsm8k_examples, renderer)
     tulu_subset = tulu_examples
     opencode_subset = opencode_examples
 
@@ -303,7 +316,7 @@ def main():
             for w, src in zip(weights_list, sources)
         ])
 
-        gsm8k_boost = 2.0
+        gsm8k_boost = 1.5
         weights = weights.copy()
         # only weight asst tokens 
         gsm_mask = (token_sources == "gsm8k") & (weights > 0)
