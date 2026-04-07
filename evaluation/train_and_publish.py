@@ -160,22 +160,32 @@ def example_to_convo(example):
         ]
         return convo, source
 
-    if "messages" in example: # Tulu
+    elif "messages" in example:  # Tulu
         messages = example["messages"]
-        # extract last user-assistant pair
+
+        # collect all valid user → assistant pairs
         pairs = [
             (messages[i]["content"], messages[i+1]["content"])
-            for i in range(len(messages)-1)
+            for i in range(len(messages) - 1)
             if messages[i]["role"] == "user" and messages[i+1]["role"] == "assistant"
         ]
+
         if pairs:
-            last_question, last_answer = pairs[-1]
+            # decide sampling strategy
+            if random.random() < 0.3:
+                best_question, best_answer = max(
+                    pairs,
+                    key=lambda qa: len(qa[1].split())  # word-based length is more stable
+                )
+            else:
+                # last 70%, just take last back-and-forth pair
+                best_question, best_answer = pairs[-1]
+
             convo = [
-                {"role": "user", "content": last_question},
-                {"role": "assistant", "content": last_answer},
+                {"role": "user", "content": best_question},
+                {"role": "assistant", "content": best_answer},
             ]
             return convo, source
-
     return None, None  # unsupported format
 
 def main():
