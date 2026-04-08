@@ -28,9 +28,9 @@ from tinker_cookbook import model_info, renderers
 from tinker_cookbook.supervised.data import conversation_to_datum
 from tinker_cookbook.tokenizer_utils import get_tokenizer
 
-MODEL = "meta-llama/Llama-3.2-3B"
+#MODEL = "meta-llama/Llama-3.2-3B"
 #MODEL = "meta-llama/Llama-3.2-1B"    # Smaller, faster for development
-#MODEL = "meta-llama/Llama-3.1-8B"    # Recommended for final submission
+MODEL = "meta-llama/Llama-3.1-8B"    # Recommended for final submission
 
 EVAL_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -107,8 +107,8 @@ def build_batch(gsm8k_data, tulu_data, opencode_data, step, total_steps, batch_s
     # Stronger anchoring (prevents drift)
     if step % 4 == 0:
         gsm8k_count = batch_size // 2  # at least half GSM8K every 4 steps
-        opencode_count = (batch_size - gsm8k_count) // 2
-        tulu_count = batch_size - gsm8k_count - opencode_count
+        tulu_count = ((batch_size - gsm8k_count) // 2) * 1.5
+        opencode_count =  batch_size - gsm8k_count - tulu_count
 
     # Safety (in case of small datasets)
     gsm8k_count = min(gsm8k_count, len(gsm8k_data))
@@ -212,6 +212,42 @@ def filter_gsm8k_examples(examples_array, renderer):
     print(f"Filtered examples: {len(examples_array)} -> {len(good_examples)} (max token length 512)")
     return good_examples
 
+def filter_tulu_examples(tulu, tulu_samples):
+    half = tulu_samples // 2
+
+    target_source1 = "ai2-adapt-dev/personahub_ifdata_manual_seed_v3_29980"
+    target_source2 = "ai2-adapt-dev/no_robots_converted"
+
+    tulu_target = []
+    tulu_other = []
+
+    for ex in tulu:
+        if ex.get("source") == target_source1 or ex.get("source") == target_source2:
+            if len(tulu_target) < half:
+                tulu_target.append(ex)
+        else:
+            if len(tulu_other) < (tulu_samples - half):
+                tulu_other.append(ex)
+
+        # stop early when full
+        if len(tulu_target) >= half and len(tulu_other) >= (tulu_samples - half):
+            break
+
+    # backfill if target is too small
+    if len(tulu_target) < half:
+        print(f"Warning: only found {len(tulu_target)} target samples, backfilling...")
+        needed = half - len(tulu_target)
+        tulu_target.extend(tulu_other[:needed])
+        tulu_other = tulu_other[needed:]
+
+    tulu_subset = tulu_target + tulu_other
+    random.shuffle(tulu_subset)
+
+    print(f"Tulu subset: {len(tulu_subset)} total")
+    print(f"  Target source: {len(tulu_target)}")
+    print(f"  Other: {len(tulu_other)}")
+    return tulu_subset
+
 def main():
     parser = argparse.ArgumentParser(description="Train, save, and publish a checkpoint")
     parser.add_argument("--num_steps", type=int, default=10, help="Number of training steps")
@@ -242,7 +278,7 @@ def main():
     # The datasets are large, so stream and take random subset
     # this won't be a truly random subset but good enough for now
     gsm8k_subset = load_scored_data("gsm8k_scored.jsonl", temperature=2.0)
-    tulu = load_dataset("allenai/tulu-3-sft-mixture", split="train", streaming=True).shuffle(seed=42)
+    tulu = load_dataset("allenai/tulu-3-sft-mixture", split="train", streaming=True).shuffle(seed=42, buffer_size=100000)
     opencode = load_dataset("nvidia/OpenCodeInstruct", split="train", streaming=True).shuffle(seed=42)
 
     tulu_samples = 10000
@@ -250,10 +286,10 @@ def main():
 
     # Take the first ___ random samples from the streamed dataset
     # Change ratios later, or change to selective sampling
-    tulu_examples = [example for _, example in zip(range(tulu_samples), tulu)]
+    #tulu_examples = [example for _, example in zip(range(tulu_samples), tulu)]
     opencode_examples = [example for _, example in zip(range(opencode_samples), opencode)]
 
-    tulu_subset = tulu_examples
+    tulu_subset = filter_tulu_examples(tulu, tulu_samples)
     opencode_subset = opencode_examples
 
     # Create training client
