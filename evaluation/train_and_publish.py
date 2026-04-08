@@ -34,22 +34,90 @@ MODEL = "meta-llama/Llama-3.1-8B"    # Recommended for final submission
 
 EVAL_DIR = os.path.dirname(os.path.abspath(__file__))
 
+def filter_tulu_examples(tulu, tulu_samples, target_ratio_if=0.5, target_ratio_math=0.25):
+    target_amount_if = int(tulu_samples * target_ratio_if)
+    target_amount_math = int(tulu_samples * target_ratio_math)
 
-def scoring_function(ifeval, gsm8k, humaneval, factor=1.2, split=0.7):
+    target_source1_if = "ai2-adapt-dev/personahub_ifdata_manual_seed_v3_29980"
+    target_source2_if = "ai2-adapt-dev/no_robots_converted"
+    target_source3_math = "allenai/tulu-3-sft-personas-math-grade"
+    target_source4_math = "ai2-adapt-dev/tulu_v3.9_open_math_2_gsm8k_50k"
+
+    tulu_target1 = []
+    tulu_target2 = []
+    tulu_target3 = []
+    tulu_target4 = []
+    tulu_other = []
+
+    for ex in tulu:
+        if ex.get("source") == target_source1_if:
+            if len(tulu_target1) < target_amount_if//2:
+                tulu_target1.append(ex)
+        elif ex.get("source") == target_source2_if:
+            if len(tulu_target2) < target_amount_if//2:
+                tulu_target2.append(ex)
+        elif ex.get("source") == target_source3_math:
+            if len(tulu_target3) < target_amount_math//2:
+                tulu_target3.append(ex)
+        elif ex.get("source") == target_source4_math:
+            if len(tulu_target4) < target_amount_math//2:
+                tulu_target4.append(ex)
+        else:
+            if len(tulu_other) < (tulu_samples - target_amount_if - target_amount_math):
+                tulu_other.append(ex)
+
+        # stop early when full
+        if len(tulu_target1) >= target_amount_if//2 and len(tulu_target2) >= target_amount_if//2 and len(tulu_target3) >= target_amount_math//2 and len(tulu_target4) >= target_amount_math//2 and len(tulu_other) >= (tulu_samples - target_amount_if - target_amount_math):
+            break
+
+    # backfill if target is too small
+    if len(tulu_target1) < target_amount_if//2:
+        print(f"Warning: only found {len(tulu_target1)} target1 samples, backfilling...")
+        needed = target_amount_if - len(tulu_target1)
+        tulu_target1.extend(tulu_other[:needed])
+        tulu_other = tulu_other[needed:]
+    if len(tulu_target2) < target_amount_if//2:
+        print(f"Warning: only found {len(tulu_target2)} target2 samples, backfilling...")
+        needed = target_amount_if - len(tulu_target2)
+        tulu_target2.extend(tulu_other[:needed])
+        tulu_other = tulu_other[needed:]
+    if len(tulu_target3) < target_amount_math//2:
+        print(f"Warning: only found {len(tulu_target3)} target3 samples, backfilling...")
+        needed = target_amount_math - len(tulu_target3)
+        tulu_target3.extend(tulu_other[:needed])
+        tulu_other = tulu_other[needed:]
+    if len(tulu_target4) < target_amount_math//2:
+        print(f"Warning: only found {len(tulu_target4)} target4 samples, backfilling...")
+        needed = target_amount_math - len(tulu_target4)
+        tulu_target4.extend(tulu_other[:needed])
+        tulu_other = tulu_other[needed:]
+
+    tulu_subset = tulu_target1 + tulu_target2 + tulu_target3 + tulu_target4 + tulu_other
+    random.shuffle(tulu_subset)
+
+    print(f"Tulu subset: {len(tulu_subset)} total")
+    print(f"  Target source 1: {len(tulu_target1)}")
+    print(f"  Target source 2: {len(tulu_target2)}")
+    print(f"  Target source 3: {len(tulu_target3)}")
+    print(f"  Target source 4: {len(tulu_target4)}")
+    print(f"  Other: {len(tulu_other)}")
+    return tulu_subset
+
+def scoring_function(ifeval, gsm8k, humaneval, split=0.7):
     # cap scores at reasonable thresholds and average
     # forces model to improve weakest task
     #factor allows us to push model to higher performance on all tasks, but still requires balance
     base = (
-        ifeval / 0.45 * factor +
-        gsm8k / 0.50 * factor +
-        humaneval / 0.30 * factor
+        ifeval +
+        gsm8k +
+        humaneval
     ) / 3
 
     # penalize imbalance
     min_task = min(
-        (ifeval / 0.45) * factor,
-        (gsm8k / 0.50) * factor,
-        (humaneval / 0.30) * factor
+        (ifeval / 0.45),
+        (gsm8k / 0.50),
+        (humaneval / 0.30)
     )
 
     return split * base + (1 - split) * min_task
@@ -100,15 +168,15 @@ def build_batch(gsm8k_data, tulu_data, opencode_data, step, total_steps, batch_s
 
     # Proper stochastic sampling 
     gsm8k_count = max(1, np.random.binomial(batch_size, target_ratio)) # ensure at least 1 GSM8K example per batch for stability
-    opencode_count = (batch_size - gsm8k_count) // 2 #update later
+    opencode_count = (batch_size - gsm8k_count) // 4 #update later
     tulu_count = batch_size - gsm8k_count - opencode_count #update later
 
 
     # Stronger anchoring (prevents drift)
-    if step % 4 == 0:
-        gsm8k_count = batch_size // 2  # at least half GSM8K every 4 steps
-        tulu_count = int(((batch_size - gsm8k_count) // 2) * 1.5)
-        opencode_count =  batch_size - gsm8k_count - tulu_count
+    #if step % 4 == 0:
+    #    gsm8k_count = batch_size // 2  # at least half GSM8K every 4 steps
+    #    opencode_count = (batch_size - gsm8k_count) // 4
+    #    tulu_count = batch_size - gsm8k_count - opencode_count
 
     # Safety (in case of small datasets)
     gsm8k_count = min(gsm8k_count, len(gsm8k_data))
@@ -283,6 +351,7 @@ def main():
 
     tulu_samples = 10000
     opencode_samples = 10000
+    tulu_subset = filter_tulu_examples(tulu, tulu_samples, 0.7, 0.2)
 
     # Take the first ___ random samples from the streamed dataset
     # Change ratios later, or change to selective sampling
@@ -401,6 +470,7 @@ def main():
                 print(f"New best checkpoint at step {step+1} with score {best_score:.4f}")
 
             else:
+                print(f"Not a new best checkpoint, score {current_score:.4f}")
                 steps_since_improve += 1
 
             if steps_since_improve >= patience:
