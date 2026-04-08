@@ -160,11 +160,11 @@ def build_batch(gsm8k_data, tulu_data, opencode_data, step, total_steps, batch_s
 
     # Phase-based schedule
     if progress < 0.3:
-        target_ratio = 0.9   # early: mostly GSM8K
+        target_ratio = 0.8   # early: mostly GSM8K
     elif progress < 0.7:
-        target_ratio = 0.7   # mid: real mixing (stronger Tulu influence)
+        target_ratio = 0.65   # mid: real mixing (stronger Tulu influence)
     else:
-        target_ratio = 0.8   # late: stabilize (not too GSM-heavy)
+        target_ratio = 0.75   # late: stabilize (not too GSM-heavy)
 
     # Proper stochastic sampling 
     gsm8k_count = max(1, np.random.binomial(batch_size, target_ratio)) # ensure at least 1 GSM8K example per batch for stability
@@ -351,7 +351,7 @@ def main():
 
     tulu_samples = 10000
     opencode_samples = 10000
-    tulu_subset = filter_tulu_examples(tulu, tulu_samples, 0.7, 0.2)
+    tulu_subset = filter_tulu_examples(tulu, tulu_samples, target_ratio_if=0.65, target_ratio_math=0.25)
 
     # Take the first ___ random samples from the streamed dataset
     # Change ratios later, or change to selective sampling
