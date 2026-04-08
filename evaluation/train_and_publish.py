@@ -107,7 +107,7 @@ def build_batch(gsm8k_data, tulu_data, opencode_data, step, total_steps, batch_s
     # Stronger anchoring (prevents drift)
     if step % 4 == 0:
         gsm8k_count = batch_size // 2  # at least half GSM8K every 4 steps
-        tulu_count = ((batch_size - gsm8k_count) // 2) * 1.5
+        tulu_count = int(((batch_size - gsm8k_count) // 2) * 1.5)
         opencode_count =  batch_size - gsm8k_count - tulu_count
 
     # Safety (in case of small datasets)
@@ -213,7 +213,7 @@ def filter_gsm8k_examples(examples_array, renderer):
     return good_examples
 
 def filter_tulu_examples(tulu, tulu_samples):
-    half = tulu_samples // 2
+    filtered_num = int(tulu_samples * 0.5)
 
     target_source1 = "ai2-adapt-dev/personahub_ifdata_manual_seed_v3_29980"
     target_source2 = "ai2-adapt-dev/no_robots_converted"
@@ -223,20 +223,20 @@ def filter_tulu_examples(tulu, tulu_samples):
 
     for ex in tulu:
         if ex.get("source") == target_source1 or ex.get("source") == target_source2:
-            if len(tulu_target) < half:
+            if len(tulu_target) < filtered_num:
                 tulu_target.append(ex)
         else:
-            if len(tulu_other) < (tulu_samples - half):
+            if len(tulu_other) < (tulu_samples - filtered_num):
                 tulu_other.append(ex)
 
         # stop early when full
-        if len(tulu_target) >= half and len(tulu_other) >= (tulu_samples - half):
+        if len(tulu_target) >= filtered_num and len(tulu_other) >= (tulu_samples - filtered_num):
             break
 
     # backfill if target is too small
-    if len(tulu_target) < half:
+    if len(tulu_target) < filtered_num:
         print(f"Warning: only found {len(tulu_target)} target samples, backfilling...")
-        needed = half - len(tulu_target)
+        needed = filtered_num - len(tulu_target)
         tulu_target.extend(tulu_other[:needed])
         tulu_other = tulu_other[needed:]
 
