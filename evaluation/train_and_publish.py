@@ -28,9 +28,9 @@ from tinker_cookbook import model_info, renderers
 from tinker_cookbook.supervised.data import conversation_to_datum
 from tinker_cookbook.tokenizer_utils import get_tokenizer
 
-#MODEL = "meta-llama/Llama-3.2-3B"
+MODEL = "meta-llama/Llama-3.2-3B"
 #MODEL = "meta-llama/Llama-3.2-1B"    # Smaller, faster for development
-MODEL = "meta-llama/Llama-3.1-8B"    # Recommended for final submission
+#MODEL = "meta-llama/Llama-3.1-8B"    # Recommended for final submission
 
 EVAL_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -106,9 +106,9 @@ def build_batch(gsm8k_data, tulu_data, opencode_data, step, total_steps, batch_s
 
     # Stronger anchoring (prevents drift)
     if step % 4 == 0:
-        gsm8k_count = batch_size
-        tulu_count = 0
-        opencode_count = 0
+        gsm8k_count = batch_size // 2  # at least half GSM8K every 4 steps
+        opencode_count = (batch_size - gsm8k_count) // 2
+        tulu_count = batch_size - gsm8k_count - opencode_count
 
     # Safety (in case of small datasets)
     gsm8k_count = min(gsm8k_count, len(gsm8k_data))
