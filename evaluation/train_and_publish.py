@@ -160,7 +160,7 @@ def build_batch(gsm8k_data, tulu_data, opencode_data, step, total_steps, batch_s
 
     # Phase-based schedule
     if progress < 0.3:
-        target_ratio = 0.8   # early: mostly GSM8K
+        target_ratio = 0.75   # early: mostly GSM8K
     elif progress < 0.7:
         target_ratio = 0.65   # mid: real mixing (stronger Tulu influence)
     else:
@@ -168,7 +168,7 @@ def build_batch(gsm8k_data, tulu_data, opencode_data, step, total_steps, batch_s
 
     # Proper stochastic sampling 
     gsm8k_count = max(1, np.random.binomial(batch_size, target_ratio)) # ensure at least 1 GSM8K example per batch for stability
-    opencode_count = (batch_size - gsm8k_count) // 4 #update later
+    opencode_count = (batch_size - gsm8k_count) // 8 #update later
     tulu_count = batch_size - gsm8k_count - opencode_count #update later
 
 
@@ -315,14 +315,13 @@ def main():
 
     tulu_samples = 10000
     opencode_samples = 10000
-    tulu_subset = filter_tulu_examples(tulu, tulu_samples, target_ratio_if=0.65, target_ratio_math=0.25)
+    tulu_subset = filter_tulu_examples(tulu, tulu_samples, target_ratio_if=0.7, target_ratio_math=0.3)
 
     # Take the first ___ random samples from the streamed dataset
     # Change ratios later, or change to selective sampling
     #tulu_examples = [example for _, example in zip(range(tulu_samples), tulu)]
     opencode_examples = [example for _, example in zip(range(opencode_samples), opencode)]
 
-    tulu_subset = filter_tulu_examples(tulu, tulu_samples)
     opencode_subset = opencode_examples
 
     # Create training client
