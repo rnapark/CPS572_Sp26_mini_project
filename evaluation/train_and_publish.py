@@ -280,42 +280,6 @@ def filter_gsm8k_examples(examples_array, renderer):
     print(f"Filtered examples: {len(examples_array)} -> {len(good_examples)} (max token length 512)")
     return good_examples
 
-def filter_tulu_examples(tulu, tulu_samples):
-    filtered_num = int(tulu_samples * 0.5)
-
-    target_source1 = "ai2-adapt-dev/personahub_ifdata_manual_seed_v3_29980"
-    target_source2 = "ai2-adapt-dev/no_robots_converted"
-
-    tulu_target = []
-    tulu_other = []
-
-    for ex in tulu:
-        if ex.get("source") == target_source1 or ex.get("source") == target_source2:
-            if len(tulu_target) < filtered_num:
-                tulu_target.append(ex)
-        else:
-            if len(tulu_other) < (tulu_samples - filtered_num):
-                tulu_other.append(ex)
-
-        # stop early when full
-        if len(tulu_target) >= filtered_num and len(tulu_other) >= (tulu_samples - filtered_num):
-            break
-
-    # backfill if target is too small
-    if len(tulu_target) < filtered_num:
-        print(f"Warning: only found {len(tulu_target)} target samples, backfilling...")
-        needed = filtered_num - len(tulu_target)
-        tulu_target.extend(tulu_other[:needed])
-        tulu_other = tulu_other[needed:]
-
-    tulu_subset = tulu_target + tulu_other
-    random.shuffle(tulu_subset)
-
-    print(f"Tulu subset: {len(tulu_subset)} total")
-    print(f"  Target source: {len(tulu_target)}")
-    print(f"  Other: {len(tulu_other)}")
-    return tulu_subset
-
 def main():
     parser = argparse.ArgumentParser(description="Train, save, and publish a checkpoint")
     parser.add_argument("--num_steps", type=int, default=10, help="Number of training steps")
