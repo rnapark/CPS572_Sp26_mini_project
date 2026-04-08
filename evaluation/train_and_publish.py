@@ -175,7 +175,7 @@ def build_batch(gsm8k_data, tulu_data, opencode_data, step, total_steps, batch_s
     # Stronger anchoring (prevents drift)
     #if step % 4 == 0:
     #    gsm8k_count = batch_size // 2  # at least half GSM8K every 4 steps
-    #    opencode_count = (batch_size - gsm8k_count) // 4
+    #    opencode_count = (batch_size - gsm8k_count) // 2
     #    tulu_count = batch_size - gsm8k_count - opencode_count
 
     # Safety (in case of small datasets)
