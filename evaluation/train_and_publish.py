@@ -162,9 +162,9 @@ def build_batch(gsm8k_data, tulu_data, opencode_data, step, total_steps, batch_s
     if progress < 0.3:
         target_ratio = 0.75   # early: mostly GSM8K
     elif progress < 0.7:
-        target_ratio = 0.65   # mid: real mixing (stronger Tulu influence)
+        target_ratio = 0.6   # mid: real mixing (stronger Tulu influence)
     else:
-        target_ratio = 0.75   # late: stabilize (not too GSM-heavy)
+        target_ratio = 0.65   # late: stabilize (not too GSM-heavy)
 
     # Proper stochastic sampling 
     gsm8k_count = max(1, np.random.binomial(batch_size, target_ratio)) # ensure at least 1 GSM8K example per batch for stability
