@@ -1,0 +1,293 @@
+{
+  "builder_name": "parquet",
+  "citation": "",
+  "config_name": "train",
+  "dataset_name": "open_code_instruct",
+  "dataset_size": 19055682816,
+  "description": "",
+  "download_checksums": {
+    "hf://datasets/nvidia/OpenCodeInstruct@8f3ba5bafe4d6e8db46082cf7ae6741bc370604d/data/train-00000-of-00050.parquet": {
+      "num_bytes": 133476478,
+      "checksum": null
+    },
+    "hf://datasets/nvidia/OpenCodeInstruct@8f3ba5bafe4d6e8db46082cf7ae6741bc370604d/data/train-00001-of-00050.parquet": {
+      "num_bytes": 117050851,
+      "checksum": null
+    },
+    "hf://datasets/nvidia/OpenCodeInstruct@8f3ba5bafe4d6e8db46082cf7ae6741bc370604d/data/train-00002-of-00050.parquet": {
+      "num_bytes": 115849397,
+      "checksum": null
+    },
+    "hf://datasets/nvidia/OpenCodeInstruct@8f3ba5bafe4d6e8db46082cf7ae6741bc370604d/data/train-00003-of-00050.parquet": {
+      "num_bytes": 118088378,
+      "checksum": null
+    },
+    "hf://datasets/nvidia/OpenCodeInstruct@8f3ba5bafe4d6e8db46082cf7ae6741bc370604d/data/train-00004-of-00050.parquet": {
+      "num_bytes": 118220482,
+      "checksum": null
+    },
+    "hf://datasets/nvidia/OpenCodeInstruct@8f3ba5bafe4d6e8db46082cf7ae6741bc370604d/data/train-00005-of-00050.parquet": {
+      "num_bytes": 117103252,
+      "checksum": null
+    },
+    "hf://datasets/nvidia/OpenCodeInstruct@8f3ba5bafe4d6e8db46082cf7ae6741bc370604d/data/train-00006-of-00050.parquet": {
+      "num_bytes": 120968358,
+      "checksum": null
+    },
+    "hf://datasets/nvidia/OpenCodeInstruct@8f3ba5bafe4d6e8db46082cf7ae6741bc370604d/data/train-00007-of-00050.parquet": {
+      "num_bytes": 113867035,
+      "checksum": null
+    },
+    "hf://datasets/nvidia/OpenCodeInstruct@8f3ba5bafe4d6e8db46082cf7ae6741bc370604d/data/train-00008-of-00050.parquet": {
+      "num_bytes": 121029590,
+      "checksum": null
+    },
+    "hf://datasets/nvidia/OpenCodeInstruct@8f3ba5bafe4d6e8db46082cf7ae6741bc370604d/data/train-00009-of-00050.parquet": {
+      "num_bytes": 127106336,
+      "checksum": null
+    },
+    "hf://datasets/nvidia/OpenCodeInstruct@8f3ba5bafe4d6e8db46082cf7ae6741bc370604d/data/train-00010-of-00050.parquet": {
+      "num_bytes": 132511783,
+      "checksum": null
+    },
+    "hf://datasets/nvidia/OpenCodeInstruct@8f3ba5bafe4d6e8db46082cf7ae6741bc370604d/data/train-00011-of-00050.parquet": {
+      "num_bytes": 154017621,
+      "checksum": null
+    },
+    "hf://datasets/nvidia/OpenCodeInstruct@8f3ba5bafe4d6e8db46082cf7ae6741bc370604d/data/train-00012-of-00050.parquet": {
+      "num_bytes": 141178042,
+      "checksum": null
+    },
+    "hf://datasets/nvidia/OpenCodeInstruct@8f3ba5bafe4d6e8db46082cf7ae6741bc370604d/data/train-00013-of-00050.parquet": {
+      "num_bytes": 147068255,
+      "checksum": null
+    },
+    "hf://datasets/nvidia/OpenCodeInstruct@8f3ba5bafe4d6e8db46082cf7ae6741bc370604d/data/train-00014-of-00050.parquet": {
+      "num_bytes": 154560043,
+      "checksum": null
+    },
+    "hf://datasets/nvidia/OpenCodeInstruct@8f3ba5bafe4d6e8db46082cf7ae6741bc370604d/data/train-00015-of-00050.parquet": {
+      "num_bytes": 149728149,
+      "checksum": null
+    },
+    "hf://datasets/nvidia/OpenCodeInstruct@8f3ba5bafe4d6e8db46082cf7ae6741bc370604d/data/train-00016-of-00050.parquet": {
+      "num_bytes": 139989167,
+      "checksum": null
+    },
+    "hf://datasets/nvidia/OpenCodeInstruct@8f3ba5bafe4d6e8db46082cf7ae6741bc370604d/data/train-00017-of-00050.parquet": {
+      "num_bytes": 154488894,
+      "checksum": null
+    },
+    "hf://datasets/nvidia/OpenCodeInstruct@8f3ba5bafe4d6e8db46082cf7ae6741bc370604d/data/train-00018-of-00050.parquet": {
+      "num_bytes": 131210694,
+      "checksum": null
+    },
+    "hf://datasets/nvidia/OpenCodeInstruct@8f3ba5bafe4d6e8db46082cf7ae6741bc370604d/data/train-00019-of-00050.parquet": {
+      "num_bytes": 138179442,
+      "checksum": null
+    },
+    "hf://datasets/nvidia/OpenCodeInstruct@8f3ba5bafe4d6e8db46082cf7ae6741bc370604d/data/train-00020-of-00050.parquet": {
+      "num_bytes": 153999706,
+      "checksum": null
+    },
+    "hf://datasets/nvidia/OpenCodeInstruct@8f3ba5bafe4d6e8db46082cf7ae6741bc370604d/data/train-00021-of-00050.parquet": {
+      "num_bytes": 149873743,
+      "checksum": null
+    },
+    "hf://datasets/nvidia/OpenCodeInstruct@8f3ba5bafe4d6e8db46082cf7ae6741bc370604d/data/train-00022-of-00050.parquet": {
+      "num_bytes": 145842408,
+      "checksum": null
+    },
+    "hf://datasets/nvidia/OpenCodeInstruct@8f3ba5bafe4d6e8db46082cf7ae6741bc370604d/data/train-00023-of-00050.parquet": {
+      "num_bytes": 154577297,
+      "checksum": null
+    },
+    "hf://datasets/nvidia/OpenCodeInstruct@8f3ba5bafe4d6e8db46082cf7ae6741bc370604d/data/train-00024-of-00050.parquet": {
+      "num_bytes": 150058021,
+      "checksum": null
+    },
+    "hf://datasets/nvidia/OpenCodeInstruct@8f3ba5bafe4d6e8db46082cf7ae6741bc370604d/data/train-00025-of-00050.parquet": {
+      "num_bytes": 145021888,
+      "checksum": null
+    },
+    "hf://datasets/nvidia/OpenCodeInstruct@8f3ba5bafe4d6e8db46082cf7ae6741bc370604d/data/train-00026-of-00050.parquet": {
+      "num_bytes": 149860137,
+      "checksum": null
+    },
+    "hf://datasets/nvidia/OpenCodeInstruct@8f3ba5bafe4d6e8db46082cf7ae6741bc370604d/data/train-00027-of-00050.parquet": {
+      "num_bytes": 145240836,
+      "checksum": null
+    },
+    "hf://datasets/nvidia/OpenCodeInstruct@8f3ba5bafe4d6e8db46082cf7ae6741bc370604d/data/train-00028-of-00050.parquet": {
+      "num_bytes": 153829646,
+      "checksum": null
+    },
+    "hf://datasets/nvidia/OpenCodeInstruct@8f3ba5bafe4d6e8db46082cf7ae6741bc370604d/data/train-00029-of-00050.parquet": {
+      "num_bytes": 146291069,
+      "checksum": null
+    },
+    "hf://datasets/nvidia/OpenCodeInstruct@8f3ba5bafe4d6e8db46082cf7ae6741bc370604d/data/train-00030-of-00050.parquet": {
+      "num_bytes": 144841412,
+      "checksum": null
+    },
+    "hf://datasets/nvidia/OpenCodeInstruct@8f3ba5bafe4d6e8db46082cf7ae6741bc370604d/data/train-00031-of-00050.parquet": {
+      "num_bytes": 151902635,
+      "checksum": null
+    },
+    "hf://datasets/nvidia/OpenCodeInstruct@8f3ba5bafe4d6e8db46082cf7ae6741bc370604d/data/train-00032-of-00050.parquet": {
+      "num_bytes": 148967375,
+      "checksum": null
+    },
+    "hf://datasets/nvidia/OpenCodeInstruct@8f3ba5bafe4d6e8db46082cf7ae6741bc370604d/data/train-00033-of-00050.parquet": {
+      "num_bytes": 139833160,
+      "checksum": null
+    },
+    "hf://datasets/nvidia/OpenCodeInstruct@8f3ba5bafe4d6e8db46082cf7ae6741bc370604d/data/train-00034-of-00050.parquet": {
+      "num_bytes": 146366734,
+      "checksum": null
+    },
+    "hf://datasets/nvidia/OpenCodeInstruct@8f3ba5bafe4d6e8db46082cf7ae6741bc370604d/data/train-00035-of-00050.parquet": {
+      "num_bytes": 141915562,
+      "checksum": null
+    },
+    "hf://datasets/nvidia/OpenCodeInstruct@8f3ba5bafe4d6e8db46082cf7ae6741bc370604d/data/train-00036-of-00050.parquet": {
+      "num_bytes": 131648445,
+      "checksum": null
+    },
+    "hf://datasets/nvidia/OpenCodeInstruct@8f3ba5bafe4d6e8db46082cf7ae6741bc370604d/data/train-00037-of-00050.parquet": {
+      "num_bytes": 135082977,
+      "checksum": null
+    },
+    "hf://datasets/nvidia/OpenCodeInstruct@8f3ba5bafe4d6e8db46082cf7ae6741bc370604d/data/train-00038-of-00050.parquet": {
+      "num_bytes": 127552271,
+      "checksum": null
+    },
+    "hf://datasets/nvidia/OpenCodeInstruct@8f3ba5bafe4d6e8db46082cf7ae6741bc370604d/data/train-00039-of-00050.parquet": {
+      "num_bytes": 150642060,
+      "checksum": null
+    },
+    "hf://datasets/nvidia/OpenCodeInstruct@8f3ba5bafe4d6e8db46082cf7ae6741bc370604d/data/train-00040-of-00050.parquet": {
+      "num_bytes": 138595850,
+      "checksum": null
+    },
+    "hf://datasets/nvidia/OpenCodeInstruct@8f3ba5bafe4d6e8db46082cf7ae6741bc370604d/data/train-00041-of-00050.parquet": {
+      "num_bytes": 127448792,
+      "checksum": null
+    },
+    "hf://datasets/nvidia/OpenCodeInstruct@8f3ba5bafe4d6e8db46082cf7ae6741bc370604d/data/train-00042-of-00050.parquet": {
+      "num_bytes": 131590828,
+      "checksum": null
+    },
+    "hf://datasets/nvidia/OpenCodeInstruct@8f3ba5bafe4d6e8db46082cf7ae6741bc370604d/data/train-00043-of-00050.parquet": {
+      "num_bytes": 127362865,
+      "checksum": null
+    },
+    "hf://datasets/nvidia/OpenCodeInstruct@8f3ba5bafe4d6e8db46082cf7ae6741bc370604d/data/train-00044-of-00050.parquet": {
+      "num_bytes": 127388210,
+      "checksum": null
+    },
+    "hf://datasets/nvidia/OpenCodeInstruct@8f3ba5bafe4d6e8db46082cf7ae6741bc370604d/data/train-00045-of-00050.parquet": {
+      "num_bytes": 127527968,
+      "checksum": null
+    },
+    "hf://datasets/nvidia/OpenCodeInstruct@8f3ba5bafe4d6e8db46082cf7ae6741bc370604d/data/train-00046-of-00050.parquet": {
+      "num_bytes": 131222516,
+      "checksum": null
+    },
+    "hf://datasets/nvidia/OpenCodeInstruct@8f3ba5bafe4d6e8db46082cf7ae6741bc370604d/data/train-00047-of-00050.parquet": {
+      "num_bytes": 127413481,
+      "checksum": null
+    },
+    "hf://datasets/nvidia/OpenCodeInstruct@8f3ba5bafe4d6e8db46082cf7ae6741bc370604d/data/train-00048-of-00050.parquet": {
+      "num_bytes": 124941534,
+      "checksum": null
+    },
+    "hf://datasets/nvidia/OpenCodeInstruct@8f3ba5bafe4d6e8db46082cf7ae6741bc370604d/data/train-00049-of-00050.parquet": {
+      "num_bytes": 138581429,
+      "checksum": null
+    }
+  },
+  "download_size": 6861113102,
+  "features": {
+    "id": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "input": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "output": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "domain": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "generation_algorithm": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "llm_judgement": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "unit_tests": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "tests_execution_status": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "average_test_score": {
+      "dtype": "string",
+      "_type": "Value"
+    }
+  },
+  "homepage": "",
+  "license": "",
+  "size_in_bytes": 25916795918,
+  "splits": {
+    "train": {
+      "name": "train",
+      "num_bytes": 19055682816,
+      "num_examples": 5000000,
+      "shard_lengths": [
+        200000,
+        200000,
+        200000,
+        200000,
+        200000,
+        200000,
+        200000,
+        200000,
+        200000,
+        200000,
+        200000,
+        200000,
+        200000,
+        200000,
+        200000,
+        200000,
+        200000,
+        200000,
+        200000,
+        200000,
+        200000,
+        200000,
+        200000,
+        200000,
+        200000
+      ],
+      "dataset_name": "open_code_instruct"
+    }
+  },
+  "version": {
+    "version_str": "0.0.0",
+    "major": 0,
+    "minor": 0,
+    "patch": 0
+  }
+}

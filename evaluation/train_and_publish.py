@@ -20,9 +20,9 @@ import random
 import math
 
 import numpy as np
-from datasets import load_dataset
+from datasets import load_dataset, load_from_disk
+
 import tinker
-from datasets import load_dataset
 from tinker import types
 from tinker_cookbook import model_info, renderers
 from tinker_cookbook.supervised.data import conversation_to_datum
@@ -150,6 +150,7 @@ def get_lr(step, total_steps, base_lr, warmup_steps=100):
     progress = (step - warmup_steps) / (total_steps - warmup_steps)
     return base_lr * 0.5 * (1 + math.cos(math.pi * progress))
 
+
 def build_batch(gsm8k_data, tulu_data, opencode_data, step, total_steps, batch_size=4):
     """
     Returns a batch of examples for training with improved curriculum + proper stochastic mixing.
@@ -168,8 +169,10 @@ def build_batch(gsm8k_data, tulu_data, opencode_data, step, total_steps, batch_s
 
     # Proper stochastic sampling 
     gsm8k_count = max(1, np.random.binomial(batch_size, target_ratio)) # ensure at least 1 GSM8K example per batch for stability
-    opencode_count = (batch_size - gsm8k_count) // 8 #update later
-    tulu_count = batch_size - gsm8k_count - opencode_count #update later
+    remaining = batch_size - gsm8k_count
+
+    opencode_count = max(1, remaining // 4)
+    tulu_count = max(0, remaining - opencode_count)
 
 
     # Stronger anchoring (prevents drift)
@@ -280,6 +283,8 @@ def filter_gsm8k_examples(examples_array, renderer):
     print(f"Filtered examples: {len(examples_array)} -> {len(good_examples)} (max token length 512)")
     return good_examples
 
+
+
 def main():
     parser = argparse.ArgumentParser(description="Train, save, and publish a checkpoint")
     parser.add_argument("--num_steps", type=int, default=10, help="Number of training steps")
@@ -311,7 +316,8 @@ def main():
     # this won't be a truly random subset but good enough for now
     gsm8k_subset = load_scored_data("gsm8k_scored.jsonl", temperature=2.0)
     tulu = load_dataset("allenai/tulu-3-sft-mixture", split="train", streaming=True).shuffle(seed=42, buffer_size=100000)
-    opencode = load_dataset("nvidia/OpenCodeInstruct", split="train", streaming=True).shuffle(seed=42)
+    #opencode = load_dataset("nvidia/OpenCodeInstruct", split="train", streaming=True).shuffle(seed=42)
+    opencode = load_from_disk("opencode_filtered").shuffle(seed=42)
 
     tulu_samples = 10000
     opencode_samples = 10000
@@ -320,9 +326,9 @@ def main():
     # Take the first ___ random samples from the streamed dataset
     # Change ratios later, or change to selective sampling
     #tulu_examples = [example for _, example in zip(range(tulu_samples), tulu)]
-    opencode_examples = [example for _, example in zip(range(opencode_samples), opencode)]
+    #opencode_examples = [example for _, example in zip(range(opencode_samples), opencode)]
+    opencode_subset = random.sample(list(opencode), min(opencode_samples, len(opencode)))
 
-    opencode_subset = opencode_examples
 
     # Create training client
     print(f"Creating LoRA training client (rank={args.rank})...")
