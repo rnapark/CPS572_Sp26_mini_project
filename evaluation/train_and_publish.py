@@ -34,6 +34,35 @@ MODEL = "meta-llama/Llama-3.1-8B"    # Recommended for final submission
 
 EVAL_DIR = os.path.dirname(os.path.abspath(__file__))
 
+def load_tulu_sources(target_ratio_if=1.0, target_ratio_math=0.0):
+    """Load all scored Tulu examples into separate per-source pools. Ratios are enforced at batch time."""
+    source_configs = [
+        ("tulu_source1_scored.jsonl", "source1", target_ratio_if > 0),
+        ("tulu_source2_scored.jsonl", "source2", target_ratio_if > 0),
+        ("tulu_source3_scored.jsonl", "source3", target_ratio_math > 0),
+        ("tulu_source4_scored.jsonl", "source4", target_ratio_math > 0),
+    ]
+
+    pools = {}
+    for filepath, key, should_load in source_configs:
+        if not should_load:
+            continue
+        data = []
+        with open(filepath) as f:
+            for line in f:
+                data.append(json.loads(line))
+
+        # Z-score normalize within this source for cross-source comparability
+        scores = np.array([ex["difficulty_score"] for ex in data])
+        normalized = (scores - scores.mean()) / scores.std() if scores.std() > 0 else np.zeros_like(scores)
+        for i, ex in enumerate(data):
+            ex["_normalized_score"] = float(normalized[i])
+
+        pools[key] = data
+        print(f"  {filepath}: {len(data)} examples loaded")
+
+    return pools
+
 def filter_tulu_examples(tulu, tulu_samples, target_ratio_if=0.5, target_ratio_math=0.25):
     target_amount_if = int(tulu_samples * target_ratio_if)
     target_amount_math = int(tulu_samples * target_ratio_math)
@@ -43,6 +72,9 @@ def filter_tulu_examples(tulu, tulu_samples, target_ratio_if=0.5, target_ratio_m
     target_source3_math = "allenai/tulu-3-sft-personas-math-grade"
     target_source4_math = "ai2-adapt-dev/tulu_v3.9_open_math_2_gsm8k_50k"
 
+    target_amount_if1 = 4500
+    target_amount_if2 = target_amount_if - target_amount_if1
+
     tulu_target1 = []
     tulu_target2 = []
     tulu_target3 = []
@@ -51,10 +83,10 @@ def filter_tulu_examples(tulu, tulu_samples, target_ratio_if=0.5, target_ratio_m
 
     for ex in tulu:
         if ex.get("source") == target_source1_if:
-            if len(tulu_target1) < target_amount_if//2:
+            if len(tulu_target1) < target_amount_if1:
                 tulu_target1.append(ex)
         elif ex.get("source") == target_source2_if:
-            if len(tulu_target2) < target_amount_if//2:
+            if len(tulu_target2) < target_amount_if2:
                 tulu_target2.append(ex)
         elif ex.get("source") == target_source3_math:
             if len(tulu_target3) < target_amount_math//2:
@@ -67,18 +99,18 @@ def filter_tulu_examples(tulu, tulu_samples, target_ratio_if=0.5, target_ratio_m
                 tulu_other.append(ex)
 
         # stop early when full
-        if len(tulu_target1) >= target_amount_if//2 and len(tulu_target2) >= target_amount_if//2 and len(tulu_target3) >= target_amount_math//2 and len(tulu_target4) >= target_amount_math//2 and len(tulu_other) >= (tulu_samples - target_amount_if - target_amount_math):
+        if len(tulu_target1) >= target_amount_if1 and len(tulu_target2) >= target_amount_if2 and len(tulu_target3) >= target_amount_math//2 and len(tulu_target4) >= target_amount_math//2 and len(tulu_other) >= (tulu_samples - target_amount_if - target_amount_math):
             break
 
     # backfill if target is too small
-    if len(tulu_target1) < target_amount_if//2:
+    if len(tulu_target1) < target_amount_if1:
         print(f"Warning: only found {len(tulu_target1)} target1 samples, backfilling...")
-        needed = target_amount_if - len(tulu_target1)
+        needed = target_amount_if1 - len(tulu_target1)
         tulu_target1.extend(tulu_other[:needed])
         tulu_other = tulu_other[needed:]
-    if len(tulu_target2) < target_amount_if//2:
+    if len(tulu_target2) < target_amount_if2:
         print(f"Warning: only found {len(tulu_target2)} target2 samples, backfilling...")
-        needed = target_amount_if - len(tulu_target2)
+        needed = target_amount_if2 - len(tulu_target2)
         tulu_target2.extend(tulu_other[:needed])
         tulu_other = tulu_other[needed:]
     if len(tulu_target3) < target_amount_math//2:
@@ -115,9 +147,9 @@ def scoring_function(ifeval, gsm8k, humaneval, split=0.7):
 
     # penalize imbalance
     min_task = min(
-        (ifeval / 0.45),
-        (gsm8k / 0.50),
-        (humaneval / 0.30)
+        (ifeval),
+        (gsm8k),
+        (humaneval)
     )
 
     return split * base + (1 - split) * min_task
@@ -142,6 +174,21 @@ def weighted_sample(dataset, count):
     indices = np.random.choice(len(dataset), size=count, replace=False, p=probs)
     return [dataset[i] for i in indices]
 
+def weighted_sample_dynamic(examples, count, temperature):
+    """Sample from a pool using difficulty scores at the given temperature."""
+    if count == 0 or not examples: return []
+    count = min(count, len(examples))
+    scores = np.array([ex["_normalized_score"] for ex in examples])
+    exp_scores = np.exp((scores - np.max(scores)) / temperature)
+    probs = exp_scores / exp_scores.sum()
+    indices = np.random.choice(len(examples), size=count, replace=False, p=probs)
+    return [examples[i] for i in indices]
+
+def get_tulu_temp(step, total_steps, temp_start=4.0, temp_end=1.0):
+    """Cosine schedule: start warm (diverse/easy) and cool to hard examples over training."""
+    progress = step / total_steps
+    return temp_end + (temp_start - temp_end) * 0.5 * (1 + math.cos(math.pi * progress))
+
 def get_lr(step, total_steps, base_lr, warmup_steps=100):
     # cosine decay with linear warmup
     if step < warmup_steps:
@@ -151,57 +198,54 @@ def get_lr(step, total_steps, base_lr, warmup_steps=100):
     return base_lr * 0.5 * (1 + math.cos(math.pi * progress))
 
 
-def build_batch(gsm8k_data, tulu_data, opencode_data, step, total_steps, batch_size=4):
+def build_batch(gsm8k_data, tulu_pools, tulu_ratio_if, tulu_ratio_math, opencode_data, step, total_steps, batch_size=4):
     """
-    Returns a batch of examples for training with improved curriculum + proper stochastic mixing.
+    Returns a batch of examples. Tulu is sampled per-source with difficulty temperature schedule.
     """
-
-    # Compute curriculum progress
     progress = step / total_steps
 
-    # Phase-based schedule
+    # GSM8K phase-based schedule
     if progress < 0.3:
-        target_ratio = 0.75   # early: mostly GSM8K
+        target_ratio = 0.70
     elif progress < 0.7:
-        target_ratio = 0.6   # mid: real mixing (stronger Tulu influence)
+        target_ratio = 0.60
     else:
-        target_ratio = 0.65   # late: stabilize (not too GSM-heavy)
+        target_ratio = 0.65
 
-    # Proper stochastic sampling 
-    gsm8k_count = max(1, np.random.binomial(batch_size, target_ratio)) # ensure at least 1 GSM8K example per batch for stability
+    gsm8k_count = max(1, np.random.binomial(batch_size, target_ratio))
     remaining = batch_size - gsm8k_count
-
     opencode_count = max(1, remaining // 4)
     tulu_count = max(0, remaining - opencode_count)
 
+    # Difficulty temperature: warm (diverse) at start, cool (harder) at end
+    tulu_temp = get_tulu_temp(step, total_steps)
 
-    # Stronger anchoring (prevents drift)
-    #if step % 4 == 0:
-    #    gsm8k_count = batch_size // 2  # at least half GSM8K every 4 steps
-    #    opencode_count = (batch_size - gsm8k_count) // 2
-    #    tulu_count = batch_size - gsm8k_count - opencode_count
+    # Allocate tulu budget across sources by ratio, sample each source independently
+    if_count = round(tulu_count * tulu_ratio_if)
+    math_count = tulu_count - if_count
+    if1_count = if_count // 2
+    if2_count = if_count - if1_count
+    math3_count = math_count // 2
+    math4_count = math_count - math3_count
 
-    # Safety (in case of small datasets)
+    tulu_samples = []
+    for key, count in [("source1", if1_count), ("source2", if2_count),
+                       ("source3", math3_count), ("source4", math4_count)]:
+        pool = tulu_pools.get(key, [])
+        sampled = weighted_sample_dynamic(pool, count, tulu_temp)
+        tulu_samples.extend([dict(ex, _source="tulu") for ex in sampled])
+
+    # Safety for gsm8k and opencode
     gsm8k_count = min(gsm8k_count, len(gsm8k_data))
-    tulu_count = min(tulu_count, len(tulu_data))
     opencode_count = min(opencode_count, len(opencode_data))
 
     gsm8k_samples = weighted_sample(gsm8k_data, gsm8k_count)
-    tulu_samples = [dict(ex, _source="tulu") for ex in random.sample(tulu_data, tulu_count)]
     opencode_samples = [dict(ex, _source="opencode") for ex in random.sample(opencode_data, opencode_count)]
 
-    # Attach source tags
     for ex in gsm8k_samples:
         ex["_source"] = "gsm8k"
 
-    for ex in tulu_samples:
-        ex["_source"] = "tulu"
-    
-    for ex in opencode_samples:
-        ex["_source"] = "opencode"
-
     batch = gsm8k_samples + tulu_samples + opencode_samples
-
     random.shuffle(batch)
     return batch
 
@@ -315,13 +359,13 @@ def main():
     # The datasets are large, so stream and take random subset
     # this won't be a truly random subset but good enough for now
     gsm8k_subset = load_scored_data("gsm8k_scored.jsonl", temperature=2.0)
-    tulu = load_dataset("allenai/tulu-3-sft-mixture", split="train", streaming=True).shuffle(seed=42, buffer_size=100000)
     #opencode = load_dataset("nvidia/OpenCodeInstruct", split="train", streaming=True).shuffle(seed=42)
     opencode = load_from_disk("opencode_filtered").shuffle(seed=42)
 
-    tulu_samples = 10000
+    tulu_ratio_if = 0.7
+    tulu_ratio_math = 0.3
     opencode_samples = 10000
-    tulu_subset = filter_tulu_examples(tulu, tulu_samples, target_ratio_if=0.7, target_ratio_math=0.3)
+    tulu_pools = load_tulu_sources(target_ratio_if=tulu_ratio_if, target_ratio_math=tulu_ratio_math)
 
     # Take the first ___ random samples from the streamed dataset
     # Change ratios later, or change to selective sampling
@@ -342,12 +386,12 @@ def main():
 
     best_score = -1
     best_checkpoint_path = None
-    patience = 3 
-    min_delta = 0.01
+    patience = 20
+    min_delta = 0.0
     steps_since_improve = 0
 
     for step in range(args.num_steps):
-        raw_batch = build_batch(gsm8k_subset, tulu_subset, opencode_subset, step=step, total_steps=args.num_steps, batch_size=args.batch_size)
+        raw_batch = build_batch(gsm8k_subset, tulu_pools, tulu_ratio_if, tulu_ratio_math, opencode_subset, step=step, total_steps=args.num_steps, batch_size=args.batch_size)
         batch = []
         sources = []
         for example in raw_batch:

@@ -7,7 +7,7 @@ from tinker_cookbook.supervised.data import conversation_to_datum
 from tinker_cookbook.tokenizer_utils import get_tokenizer
 from tqdm import tqdm
 
-MODEL = "meta-llama/Llama-3.2-3B"
+MODEL = "meta-llama/Llama-3.1-8B"
 OUTPUT_FILE = "gsm8k_scored.jsonl"
 BATCH_SIZE = 8 
 
