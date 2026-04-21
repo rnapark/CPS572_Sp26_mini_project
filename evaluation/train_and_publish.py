@@ -214,7 +214,7 @@ def build_batch(gsm8k_data, tulu_pools, tulu_ratio_if, tulu_ratio_math, opencode
 
     gsm8k_count = max(1, np.random.binomial(batch_size, target_ratio))
     remaining = batch_size - gsm8k_count
-    opencode_count = max(1, remaining // 10)
+    opencode_count = max(1, remaining // 8)
     tulu_count = max(0, remaining - opencode_count)
 
     # Difficulty temperature: warm (diverse) at start, cool (harder) at end
@@ -362,8 +362,8 @@ def main():
     #opencode = load_dataset("nvidia/OpenCodeInstruct", split="train", streaming=True).shuffle(seed=42)
     opencode = load_from_disk("opencode_filtered").shuffle(seed=42)
 
-    tulu_ratio_if = 0.5
-    tulu_ratio_math = 0.5
+    tulu_ratio_if = 0.6
+    tulu_ratio_math = 0.4
     opencode_samples = 10000
     tulu_pools = load_tulu_sources(target_ratio_if=tulu_ratio_if, target_ratio_math=tulu_ratio_math)
 
