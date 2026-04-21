@@ -147,9 +147,9 @@ def scoring_function(ifeval, gsm8k, humaneval, split=0.7):
 
     # penalize imbalance
     min_task = min(
-        (ifeval),
-        (gsm8k),
-        (humaneval)
+        (ifeval) / .5,
+        (gsm8k) /.45,
+        (humaneval) / .3
     )
 
     return split * base + (1 - split) * min_task
@@ -206,15 +206,15 @@ def build_batch(gsm8k_data, tulu_pools, tulu_ratio_if, tulu_ratio_math, opencode
 
     # GSM8K phase-based schedule
     if progress < 0.3:
-        target_ratio = 0.70
+        target_ratio = 0.2
     elif progress < 0.7:
-        target_ratio = 0.60
+        target_ratio = 0.2
     else:
-        target_ratio = 0.65
+        target_ratio = 0.2
 
     gsm8k_count = max(1, np.random.binomial(batch_size, target_ratio))
     remaining = batch_size - gsm8k_count
-    opencode_count = max(1, remaining // 4)
+    opencode_count = max(1, remaining // 10)
     tulu_count = max(0, remaining - opencode_count)
 
     # Difficulty temperature: warm (diverse) at start, cool (harder) at end
@@ -362,8 +362,8 @@ def main():
     #opencode = load_dataset("nvidia/OpenCodeInstruct", split="train", streaming=True).shuffle(seed=42)
     opencode = load_from_disk("opencode_filtered").shuffle(seed=42)
 
-    tulu_ratio_if = 0.7
-    tulu_ratio_math = 0.3
+    tulu_ratio_if = 0.5
+    tulu_ratio_math = 0.5
     opencode_samples = 10000
     tulu_pools = load_tulu_sources(target_ratio_if=tulu_ratio_if, target_ratio_math=tulu_ratio_math)
 
@@ -434,7 +434,7 @@ def main():
             for w, src in zip(weights_list, sources)
         ])
 
-        gsm8k_boost = 1.5
+        gsm8k_boost = 1.3
         weights = weights.copy()
         # only weight asst tokens 
         gsm_mask = (token_sources == "gsm8k") & (weights > 0)
