@@ -20,10 +20,6 @@ BAD_PATTERNS = [
     r"The following",
 ]
 
-def is_explanatory(text):
-    return any(re.search(p, text, re.IGNORECASE) for p in BAD_PATTERNS)
-
-
 def extract_code_block(text):
     match = re.search(r"```(?:python)?\n(.*?)```", text, re.DOTALL)
     if match:
@@ -59,7 +55,6 @@ def has_return_or_logic(text):
         "if " in text
     )
 
-
 def truncate_after_function(text):
     lines = text.split("\n")
     result = []
@@ -78,9 +73,7 @@ def truncate_after_function(text):
 
     return "\n".join(result)
 
-
 # filter function
-
 def filter_sample(sample):
     output = sample.get("output", "")
     
@@ -110,14 +103,12 @@ def filter_sample(sample):
 
 
 # Apply filter
-
 filtered_ds = ds.filter(
     filter_sample,
-    num_proc=8  # parallelize (adjust to your CPU)
+    num_proc=8  # parallelize
 )
 
 # Clean outputs
-
 def clean_sample(sample):
     output = sample.get("output", "")
     output = extract_code_block(output)
@@ -131,9 +122,7 @@ filtered_ds = filtered_ds.map(
     num_proc=8
 )
 
-
 final_pool = filtered_ds.select(range(min(10000, len(filtered_ds))))
-
 
 final_pool.save_to_disk("opencode_filtered")
 
